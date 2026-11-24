@@ -6,6 +6,7 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -315,9 +316,14 @@ class FloatingService : Service() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
-            background = glassBackground(20, cyan).apply {
-                setStroke(dp(1), 0x9976E8FF.toInt())
-            }
+            background = LayerDrawable(arrayOf(
+                glassBackground(20, cyan),
+                GradientDrawable().apply {
+                    setColor(Color.TRANSPARENT)
+                    setStroke(dp(1), 0x9976E8FF.toInt())
+                    cornerRadius = dp(20).toFloat()
+                }
+            ))
             elevation = dp(14).toFloat()
         }
 
