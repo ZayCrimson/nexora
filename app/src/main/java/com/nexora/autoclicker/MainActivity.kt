@@ -34,7 +34,7 @@ class MainActivity : Activity() {
     private fun gradient(a: Int, b: Int, radius: Int = 18, stroke: Int? = null, strokeWidth: Int = 1) =
         GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(a, b)).apply {
             cornerRadius = dp(radius).toFloat()
-            setStroke(dp(strokeWidth), stroke ?: 0x55FFFFFF)
+            stroke?.let { setStroke(dp(strokeWidth), it) }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,6 +85,9 @@ class MainActivity : Activity() {
         val logo = ImageView(this).apply {
             setImageResource(R.drawable.nexora_logo)
             scaleType = ImageView.ScaleType.FIT_CENTER
+            clipToOutline = true
+            outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            background = GradientDrawable().apply { cornerRadius = dp(13).toFloat() }
         }
         brand.addView(logo, LinearLayout.LayoutParams(dp(62), dp(62)))
         val brandText = LinearLayout(this).apply {
@@ -111,7 +114,8 @@ class MainActivity : Activity() {
         heroCopy.addView(label("Tap. Automate. Dominate.", 12f, muted, false).apply { setPadding(0, dp(4), 0, 0) })
         heroTop.addView(heroCopy)
         hero.addView(heroTop)
-        hero.addView(actionButton("▶   OPEN FLOATING CONTROLLER     ›", cyan, 0xFF07142A.toInt(), true) { openController() }, marginTop(14))
+        hero.addView(actionButton("▶   OPEN MULTI TARGET CONTROLLER     ›", cyan, 0xFF07142A.toInt(), true) { openController(false) }, marginTop(14))
+        hero.addView(actionButton("＋   OPEN MULTI BUTTON CONTROLLER     ›", violet, white, false) { openController(true) }, marginTop(9))
         page.addView(hero, marginBottom(22))
 
         val permissionHead = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -271,10 +275,10 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(18), dp(18), dp(18))
             background = gradient(0xE9112043.toInt(), 0xE91A1644.toInt(), 20, 0xFF174B9B.toInt())
         }
-        info.addView(label("About Nexora", 17f, white, true), marginBottom(9))
+        info.addView(label("About NEXORA", 17f, white, true), marginBottom(9))
         info.addView(label("NEXORA is a precision tap control app with four independent targets, configurable timing, and a floating controller.", 13f, muted, false))
-        info.addView(label("Developer  •  Zayy", 12f, white, true), marginTop(14))
-        info.addView(label("Version 1.0.0", 11f, cyan, true), marginTop(8))
+        info.addView(label("Developer: Zayy", 12f, white, true), marginTop(14))
+        info.addView(label("Version 1.0.0", 11f, cyan, true), marginTop(7))
         page.addView(info)
     }
 
@@ -384,7 +388,7 @@ class MainActivity : Activity() {
     private fun marginTop(v: Int) = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(v) }
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
-    private fun openController() {
+    private fun openController(multiButton: Boolean) {
         if (!Settings.canDrawOverlays(this)) {
             toast("Grant floating window permission first")
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
@@ -395,7 +399,8 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
-        startService(Intent(this, FloatingService::class.java))
+        val service = if (multiButton) MultiButtonService::class.java else FloatingService::class.java
+        startService(Intent(this, service))
         finish()
     }
 
