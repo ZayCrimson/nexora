@@ -277,7 +277,7 @@ class MainActivity : Activity() {
         page.addView(info)
     }
 
-    private fun bottomNav(): View {
+    private fun bottomNav(): LinearLayout {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
