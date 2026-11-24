@@ -34,7 +34,7 @@ class MainActivity : Activity() {
     private fun gradient(a: Int, b: Int, radius: Int = 18, stroke: Int? = null, strokeWidth: Int = 1) =
         GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(a, b)).apply {
             cornerRadius = dp(radius).toFloat()
-            stroke?.let { setStroke(dp(strokeWidth), it) }
+            setStroke(dp(strokeWidth), stroke ?: 0x55FFFFFF)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,7 +91,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), 0, 0, 0)
         }
-        brandText.addView(label("NEXORA", 25f, white, true))
+        brandText.addView(label("Nexora Clicker", 25f, white, true))
         brandText.addView(label("PRECISION TAP CONTROL", 10f, cyan, true).apply { letterSpacing = .17f })
         brand.addView(brandText, LinearLayout.LayoutParams(0, -2, 1f))
         brand.addView(roundIcon("⚙", violet) { showAppInfo() })
@@ -265,15 +265,16 @@ class MainActivity : Activity() {
     private fun renderAbout() {
         val logo = ImageView(this).apply { setImageResource(R.drawable.nexora_logo); scaleType = ImageView.ScaleType.FIT_CENTER }
         page.addView(logo, LinearLayout.LayoutParams(dp(130), dp(130)).apply { gravity = Gravity.CENTER; bottomMargin = dp(15) })
-        page.addView(label("NEXORA", 27f, white, true).apply { gravity = Gravity.CENTER }, marginBottom(4))
+        page.addView(label("Nexora Clicker", 27f, white, true).apply { gravity = Gravity.CENTER }, marginBottom(4))
         page.addView(label("PRECISION TAP CONTROL", 11f, cyan, true).apply { gravity = Gravity.CENTER; letterSpacing = .15f }, marginBottom(22))
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(18), dp(18), dp(18))
             background = gradient(0xE9112043.toInt(), 0xE91A1644.toInt(), 20, 0xFF174B9B.toInt())
         }
-        info.addView(label("About NEXORA", 17f, white, true), marginBottom(9))
+        info.addView(label("About Nexora", 17f, white, true), marginBottom(9))
         info.addView(label("NEXORA is a precision tap control app with four independent targets, configurable timing, and a floating controller.", 13f, muted, false))
-        info.addView(label("Version 1.0.0", 11f, cyan, true), marginTop(17))
+        info.addView(label("Developer  •  Zayy", 12f, white, true), marginTop(14))
+        info.addView(label("Version 1.0.0", 11f, cyan, true), marginTop(8))
         page.addView(info)
     }
 

@@ -3,6 +3,8 @@ package com.nexora.autoclicker
 import android.app.Service
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.os.Build
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.IBinder
@@ -39,9 +41,16 @@ class FloatingService : Service() {
             h,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                (if (Build.VERSION.SDK_INT >= 31) WindowManager.LayoutParams.FLAG_BLUR_BEHIND else 0),
             PixelFormat.TRANSLUCENT
-        )
+        ).apply {
+            // Android 12+ can blur the actual game/app behind this overlay.
+            if (Build.VERSION.SDK_INT >= 31) setBlurBehindRadius(dp(30))
+        }
+
+    private fun glassBackground(radius: Int = 20, accent: Int = cyan): GlassReflectionDrawable =
+        GlassReflectionDrawable(dp(radius).toFloat(), accent)
 
     private fun rounded(color: Int, radius: Int) =
         GradientDrawable().apply {
@@ -72,16 +81,19 @@ class FloatingService : Service() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(11), dp(13), dp(11))
 
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(navy, 0xF5222049.toInt())
-            ).apply {
-                cornerRadius = dp(18).toFloat()
-            }
+            background = glassBackground(22)
+            elevation = dp(10).toFloat()
         }
 
+        root.addView(View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(0x00FFFFFF, 0xBFFFFFFF.toInt(), 0x00FFFFFF)
+            )
+        }, LinearLayout.LayoutParams(-1, dp(2)).apply { bottomMargin = dp(9) })
+
         root.addView(TextView(this).apply {
-            text = "NEXORA  •  CONTROL"
+            text = "Nexora  •  Control"
             textSize = 13f
             setTextColor(cyan)
             setPadding(dp(3), 0, 0, dp(8))
@@ -109,7 +121,7 @@ class FloatingService : Service() {
         root.addView(row)
 
         root.addView(TextView(this).apply {
-            text = "Drag markers to set positions • Tap 3 for hit settings"
+            text = "Drag targets to position • Tap 3 for hit settings"
             textSize = 10f
             setTextColor(0xFFB9C7DE.toInt())
             setPadding(dp(3), dp(7), 0, 0)
@@ -186,8 +198,8 @@ class FloatingService : Service() {
         text = textValue
         gravity = Gravity.CENTER
         textSize = 11f
-        setTextColor(if (color == cyan) 0xFF0A0F1F.toInt() else -1)
-        background = rounded(color, 11)
+        setTextColor(-1)
+        background = GlassReflectionDrawable(dp(11).toFloat(), color, compact = true)
         setPadding(dp(13), dp(11), dp(13), dp(11))
         setOnClickListener { click() }
     }
@@ -207,13 +219,13 @@ class FloatingService : Service() {
                 text = t.id.toString()
                 textSize = 16f
                 gravity = Gravity.CENTER
-                setTextColor(0xFF101426.toInt())
+                setTextColor(-1)
 
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(if (t.id % 2 == 0) purple else cyan)
-                    setStroke(dp(2), 0xFFFFFFFF.toInt())
-                }
+                background = GlassReflectionDrawable(
+                    dp(24).toFloat(),
+                    if (t.id % 2 == 0) purple else cyan,
+                    compact = true
+                )
 
                 alpha = if (t.enabled) 1f else .38f
 
@@ -303,13 +315,10 @@ class FloatingService : Service() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(navy, 0xF5222049.toInt())
-            ).apply {
-                cornerRadius = dp(16).toFloat()
-                setStroke(dp(1), cyan)
+            background = glassBackground(20, cyan).apply {
+                setStroke(dp(1), 0x9976E8FF.toInt())
             }
+            elevation = dp(14).toFloat()
         }
 
         root.addView(TextView(this).apply {
@@ -414,7 +423,7 @@ class FloatingService : Service() {
         if (ClickAccessibilityService.current == null) {
             Toast.makeText(
                 this,
-                "NEXORA Accessibility is not enabled",
+                "Nexora Accessibility is not enabled",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -461,20 +470,15 @@ class FloatingService : Service() {
     }
 
     private fun updateBubbleState() {
-        val b = bubble as? TextView ?: return
-
-        b.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(if (running) pink else cyan)
-            setStroke(dp(2), 0xFFFFFFFF.toInt())
+        val b = bubble as? ImageView ?: return
+        val accent = if (running) 0xFF168CFF.toInt() else 0xFFE84B5F.toInt()
+        // The logo remains untinted; only the reflective glass surface changes state color.
+        b.background = GlassReflectionDrawable(dp(17).toFloat(), accent, compact = true)
+        b.contentDescription = if (running) {
+            "Nexora running. Tap to stop, hold to open controls"
+        } else {
+            "Nexora stopped. Tap to start, hold to open controls"
         }
-
-        b.contentDescription =
-            if (running) {
-                "NEXORA running. Tap to stop, hold to open controls"
-            } else {
-                "NEXORA stopped. Tap to start, hold to open controls"
-            }
     }
 
     private fun runNext() {
@@ -524,24 +528,24 @@ class FloatingService : Service() {
 
         if (bubble != null) return
 
-        val b = TextView(this).apply {
-            text = "N"
-            textSize = 17f
-            gravity = Gravity.CENTER
-            setTextColor(0xFF101426.toInt())
-
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(if (running) pink else cyan)
-                setStroke(dp(2), 0xFFFFFFFF.toInt())
-            }
+        val b = ImageView(this).apply {
+            setImageResource(R.drawable.nexora_logo)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = GlassReflectionDrawable(
+                dp(17).toFloat(),
+                if (running) 0xFF168CFF.toInt() else 0xFFE84B5F.toInt(),
+                compact = true
+            )
+            elevation = dp(12).toFloat()
         }
 
         bubble = b
+        updateBubbleState()
 
         wm.addView(
             b,
-            overlayParams(dp(48), dp(48)).apply {
+            overlayParams(dp(58), dp(48)).apply {
                 gravity = Gravity.TOP or Gravity.END
                 x = dp(12)
                 y = dp(150)
