@@ -70,6 +70,7 @@ class MultiButtonService : Service() {
         row.addView(action("STOP", red) { stopLoop() }, weight())
         row.addView(action("＋ ADD", violet) { addButton() }, weight())
         row.addView(action("HIDE", 0xFF465779.toInt()) { minimize() }, weight())
+        row.addView(action("✕", red) { stopSelf() }, LinearLayout.LayoutParams(dp(34), -2))
         root.addView(row)
         root.addView(TextView(this).apply { text = "Tap a marker to edit timing • Drag to move"; textSize = 9f; setTextColor(0xFFB9C7DE.toInt()); setPadding(dp(2), dp(7), 0, 0) })
         panel = root
@@ -226,5 +227,5 @@ class MultiButtonService : Service() {
         } }
     }
     private fun toast(s:String)=Toast.makeText(this,s,Toast.LENGTH_SHORT).show()
-    override fun onDestroy(){stopLoop();closeEditor();(panel)?.let{try{wm.removeView(it)}catch(_:Exception){}};views.values.forEach{try{wm.removeView(it)}catch(_:Exception){}};bubble?.let{try{wm.removeView(it)}catch(_:Exception){}};super.onDestroy()}
+    override fun onDestroy(){stopLoop();closeEditor();(panel)?.let{try{wm.removeView(it)}catch(_:Exception){}};views.values.forEach{try{wm.removeView(it)}catch(_:Exception){}};bubble?.let{try{wm.removeView(it)}catch(_:Exception){}};panel=null;views.clear();bubble=null;super.onDestroy()}
 }

@@ -105,6 +105,10 @@ class FloatingService : Service() {
             controlButton("HIDE", 0xFF465779.toInt()) { minimize() },
             weightParams()
         )
+        row.addView(
+            controlButton("✕", 0xFFE5485D.toInt()) { stopSelf() },
+            LinearLayout.LayoutParams(dp(42), -2)
+        )
 
         root.addView(row)
 
@@ -210,9 +214,9 @@ class FloatingService : Service() {
                 setTextColor(0xFF101426.toInt())
 
                 background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(if (t.id % 2 == 0) purple else cyan)
-                    setStroke(dp(2), 0xFFFFFFFF.toInt())
+                    setColor(if (t.id % 2 == 0) 0xEE873CFF.toInt() else 0xEE20DDF5.toInt())
+                    cornerRadius = dp(14).toFloat()
+                    setStroke(dp(1), 0xCCFFFFFF.toInt())
                 }
 
                 alpha = if (t.enabled) 1f else .38f
@@ -629,10 +633,12 @@ class FloatingService : Service() {
         stopLoop()
         closeHitMenu()
 
-        panel?.let { wm.removeView(it) }
-        markers.values.forEach { wm.removeView(it) }
-        bubble?.let { wm.removeView(it) }
-
+        panel?.let { try { wm.removeView(it) } catch (_: Exception) {} }
+        markers.values.forEach { try { wm.removeView(it) } catch (_: Exception) {} }
+        bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }
+        panel = null
+        markers.clear()
+        bubble = null
         super.onDestroy()
     }
 

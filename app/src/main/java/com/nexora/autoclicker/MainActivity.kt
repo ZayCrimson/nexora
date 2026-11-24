@@ -399,6 +399,8 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
+        // Only one floating mode may exist at a time.
+        stopService(Intent(this, if (multiButton) FloatingService::class.java else MultiButtonService::class.java))
         val service = if (multiButton) MultiButtonService::class.java else FloatingService::class.java
         startService(Intent(this, service))
         finish()
