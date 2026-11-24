@@ -107,7 +107,7 @@ class FloatingService : Service() {
                             t.y = (lp.y + dp(24)).toFloat() / dm.heightPixels
                             true
                         }
-                        MotionEvent.ACTION_UP -> { TargetStore.save(this, targets); true }
+                        MotionEvent.ACTION_UP -> { TargetStore.save(this@FloatingService, targets); true }
                         else -> true
                     }
                 }
