@@ -7,6 +7,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.view.*
 import android.widget.*
 import kotlin.math.roundToInt
@@ -131,12 +132,40 @@ class FloatingService : Service() {
             Toast.makeText(this, "Enable at least one target", Toast.LENGTH_SHORT).show()
             return
         }
-        running = true; cursor = 0; runNext()
+        running = true
+        cursor = 0
+        setMarkersTouchable(false)
+        updateBubbleState()
+        runNext()
     }
 
     private fun stopLoop() {
         running = false
         handler.removeCallbacksAndMessages(null)
+        setMarkersTouchable(true)
+        updateBubbleState()
+    }
+
+    private fun setMarkersTouchable(touchable: Boolean) {
+        markers.values.forEach { marker ->
+            val lp = marker.layoutParams as? WindowManager.LayoutParams ?: return@forEach
+            lp.flags = if (touchable) {
+                lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            } else {
+                lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            }
+            wm.updateViewLayout(marker, lp)
+        }
+    }
+
+    private fun updateBubbleState() {
+        val b = bubble as? TextView ?: return
+        b.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(if (running) 0xFFEA6685.toInt() else cyan)
+            setStroke(dp(2), 0xFFFFFFFF.toInt())
+        }
+        b.contentDescription = if (running) "NEXORA running. Tap to stop, hold to open controls" else "NEXORA stopped. Tap to start, hold to open controls"
     }
 
     private fun runNext() {
@@ -151,8 +180,11 @@ class FloatingService : Service() {
             if (service == null) { stopLoop(); return@postDelayed }
             val x = t.x * resources.displayMetrics.widthPixels
             val y = t.y * resources.displayMetrics.heightPixels
-            service.performTap(x, y, t.duration) {
-                if (running) handler.postDelayed({ runNext() }, t.endDelay)
+            service.performTap(x, y, t.duration) { success ->
+                if (running) {
+                    val delay = if (success) t.endDelay else 100L
+                    handler.postDelayed({ runNext() }, delay)
+                }
             }
         }, t.startDelay)
     }
@@ -161,37 +193,79 @@ class FloatingService : Service() {
         panel?.let { wm.removeView(it) }; panel = null
         markers.values.forEach { wm.removeView(it) }; markers.clear()
         if (bubble != null) return
+
         val b = TextView(this).apply {
-            text = "N"; textSize = 18f; gravity = Gravity.CENTER
+            text = "N"
+            textSize = 17f
+            gravity = Gravity.CENTER
             setTextColor(0xFF101426.toInt())
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(cyan) }
-            setOnClickListener {
-                bubble?.let { wm.removeView(it) }; bubble = null
-                showController(); showTargets()
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (running) 0xFFEA6685.toInt() else cyan)
+                setStroke(dp(2), 0xFFFFFFFF.toInt())
             }
+            contentDescription = if (running) "NEXORA running. Tap to stop, hold to open controls" else "NEXORA stopped. Tap to start, hold to open controls"
         }
         bubble = b
-        wm.addView(b, overlayParams(dp(52), dp(52)).apply {
-            gravity = Gravity.TOP or Gravity.END; x = dp(15); y = dp(150)
+        wm.addView(b, overlayParams(dp(48), dp(48)).apply {
+            gravity = Gravity.TOP or Gravity.END
+            x = dp(12)
+            y = dp(150)
         })
-        makeDraggable(b)
+        makeBubbleDraggable(b)
     }
 
-    private fun makeDraggable(view: View) {
+    // Tap N to start/stop. Hold N briefly to restore the full controller.
+    private fun makeBubbleDraggable(view: View) {
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        val holdMs = 550L
         view.setOnTouchListener(object : View.OnTouchListener {
-            var downX = 0f; var downY = 0f; var originX = 0; var originY = 0
+            var downX = 0f
+            var downY = 0f
+            var originX = 0
+            var originY = 0
+            var moved = false
+            var downTime = 0L
+
             override fun onTouch(v: View, e: MotionEvent): Boolean {
                 val lp = v.layoutParams as WindowManager.LayoutParams
                 when (e.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        downX=e.rawX; downY=e.rawY; originX=lp.x; originY=lp.y; return true
+                        downX = e.rawX
+                        downY = e.rawY
+                        originX = lp.x
+                        originY = lp.y
+                        downTime = SystemClock.uptimeMillis()
+                        moved = false
+                        return true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        lp.x=originX+(e.rawX-downX).roundToInt()
-                        lp.y=originY+(e.rawY-downY).roundToInt()
-                        wm.updateViewLayout(v, lp); return true
+                        val dx = e.rawX - downX
+                        val dy = e.rawY - downY
+                        if (kotlin.math.abs(dx) > touchSlop || kotlin.math.abs(dy) > touchSlop) moved = true
+                        if (moved) {
+                            lp.x = originX - dx.roundToInt()
+                            lp.y = originY + dy.roundToInt()
+                            wm.updateViewLayout(v, lp)
+                        }
+                        return true
                     }
-                    MotionEvent.ACTION_UP -> return false
+                    MotionEvent.ACTION_UP -> {
+                        if (!moved) {
+                            if (SystemClock.uptimeMillis() - downTime >= holdMs) {
+                                bubble?.let { wm.removeView(it) }
+                                bubble = null
+                                showController()
+                                showTargets()
+                            } else if (running) {
+                                stopLoop()
+                            } else {
+                                startLoop()
+                            }
+                        }
+                        return true
+                    }
+                    MotionEvent.ACTION_CANCEL -> return true
                 }
                 return true
             }
