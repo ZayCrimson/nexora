@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">NEXORA</string>
+    <string name="accessibility_description">Allows NEXORA to perform tap gestures you configure and start.</string>
+</resources>
