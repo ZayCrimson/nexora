@@ -461,7 +461,7 @@ class FloatingService : Service() {
     }
 
     private fun updateBubbleState() {
-        val b = bubble as? ImageView ?: return
+        val b = bubble as? TextView ?: return
         b.background = GradientDrawable().apply {
             setColor(if (running) 0xFF168CFF.toInt() else 0xFFE5485D.toInt())
             cornerRadius = dp(13).toFloat()
@@ -521,10 +521,12 @@ class FloatingService : Service() {
 
         if (bubble != null) return
 
-        val b = ImageView(this).apply {
-            setImageResource(R.drawable.nexora_logo)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(4), dp(4), dp(4), dp(4))
+        val b = TextView(this).apply {
+            text = "N"
+            textSize = 19f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
             background = GradientDrawable().apply {
                 setColor(if (running) 0xFF168CFF.toInt() else 0xFFE5485D.toInt())
                 cornerRadius = dp(13).toFloat()

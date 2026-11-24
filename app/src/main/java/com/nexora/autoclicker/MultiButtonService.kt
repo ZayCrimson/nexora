@@ -110,15 +110,29 @@ class MultiButtonService : Service() {
                     if (moved) { lp.x=originX+dx.roundToInt(); lp.y=originY+dy.roundToInt(); wm.updateViewLayout(v,lp); t.x=(lp.x+dp(25)).toFloat()/dm.widthPixels; t.y=(lp.y+dp(25)).toFloat()/dm.heightPixels }
                     true
                 }
-                MotionEvent.ACTION_UP -> { if (moved) MultiButtonStore.save(this,buttons) else editButton(t); true }
+                MotionEvent.ACTION_UP -> {
+                    if (moved) {
+                        MultiButtonStore.save(this, buttons)
+                    } else if (!running) {
+                        editButton(t)
+                    }
+                    true
+                }
                 else -> true
             }
         }
-        val lp = params(dp(50), dp(50)).apply { gravity=Gravity.TOP or Gravity.START; x=(t.x*dm.widthPixels).roundToInt(); y=(t.y*dm.heightPixels).roundToInt() }
+        val lp = params(dp(50), dp(50)).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = (t.x * dm.widthPixels).roundToInt()
+            y = (t.y * dm.heightPixels).roundToInt()
+            if (running) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
         wm.addView(marker,lp); views[t.id]=marker
     }
 
     private fun editButton(t: TargetConfig) {
+        // A marker is a tap target while the loop is running, never a settings shortcut.
+        if (running) return
         closeEditor()
         val root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(14),dp(16),dp(14)); background=bg(navy,18,cyan) }
         root.addView(TextView(this).apply { text="BUTTON ${t.id} SETTINGS"; textSize=13f; setTextColor(cyan); setPadding(0,0,0,dp(10)) })
@@ -146,10 +160,31 @@ class MultiButtonService : Service() {
         if (running) return
         if (ClickAccessibilityService.current==null) { toast("Enable NEXORA Accessibility first"); return }
         if (buttons.none { it.enabled }) { toast("Add and enable at least one button"); return }
-        running=true; cursor=0; updateMarkers(); runNext()
+        running=true; cursor=0; updateMarkers(); updateBubbleState(); runNext()
     }
-    private fun stopLoop() { running=false; handler.removeCallbacksAndMessages(null); updateMarkers() }
-    private fun updateMarkers() { buttons.forEach { t -> views[t.id]?.background=bg(if(t.enabled)0xEE182B58.toInt() else 0xAA46516B.toInt(),14,if(running)cyan else violet) } }
+    private fun stopLoop() { running=false; handler.removeCallbacksAndMessages(null); updateMarkers(); updateBubbleState() }
+    private fun updateMarkers() {
+        buttons.forEach { t ->
+            val marker = views[t.id] ?: return@forEach
+            marker.background = bg(
+                if (t.enabled) 0xEE182B58.toInt() else 0xAA46516B.toInt(),
+                14,
+                if (running) cyan else violet
+            )
+            // Critical: while clicking, let Accessibility gestures pass through the
+            // floating marker to the game instead of activating the marker's editor.
+            val lp = marker.layoutParams as? WindowManager.LayoutParams ?: return@forEach
+            val desiredFlags = if (running) {
+                lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            } else {
+                lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            }
+            if (lp.flags != desiredFlags) {
+                lp.flags = desiredFlags
+                try { wm.updateViewLayout(marker, lp) } catch (_: Exception) { }
+            }
+        }
+    }
     private fun runNext() {
         if(!running) return
         val active=buttons.filter { it.enabled }
@@ -166,16 +201,27 @@ class MultiButtonService : Service() {
         },t.startDelay)
     }
 
+    private fun updateBubbleState() {
+        val b = bubble as? TextView ?: return
+        b.background = bg(if (running) 0xFF168CFF.toInt() else 0xFFE5485D.toInt(), 14, Color.WHITE)
+        b.contentDescription = if (running) "NEXORA running" else "NEXORA stopped"
+    }
+
     private fun minimize() {
         closeEditor(); panel?.let { try { wm.removeView(it) } catch (_:Exception){} }; panel=null
         views.values.forEach { try { wm.removeView(it) } catch (_:Exception){} }; views.clear()
-        val b=TextView(this).apply { text="N"; textSize=17f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); background=bg(if(running)cyan else red,14,Color.WHITE) }
+        val b=TextView(this).apply {
+            text="N"; textSize=19f; typeface=android.graphics.Typeface.DEFAULT_BOLD
+            gravity=Gravity.CENTER; setTextColor(Color.WHITE)
+            background=bg(if(running)0xFF168CFF.toInt() else 0xFFE5485D.toInt(),14,Color.WHITE)
+            contentDescription = if (running) "NEXORA running" else "NEXORA stopped"
+        }
         bubble=b; wm.addView(b,params(dp(50),dp(50)).apply { gravity=Gravity.TOP or Gravity.END; x=dp(12); y=dp(150) })
         var downX=0f; var downY=0f; var ox=0; var oy=0; var moved=false; var downAt=0L
         b.setOnTouchListener { v,e -> val lp=v.layoutParams as WindowManager.LayoutParams; when(e.action){
             MotionEvent.ACTION_DOWN->{downX=e.rawX;downY=e.rawY;ox=lp.x;oy=lp.y;moved=false;downAt=android.os.SystemClock.uptimeMillis();true}
             MotionEvent.ACTION_MOVE->{val dx=e.rawX-downX;val dy=e.rawY-downY;if(abs(dx)>dp(5)||abs(dy)>dp(5))moved=true;if(moved){lp.x=ox-dx.roundToInt();lp.y=oy+dy.roundToInt();wm.updateViewLayout(v,lp)};true}
-            MotionEvent.ACTION_UP->{if(!moved){if(android.os.SystemClock.uptimeMillis()-downAt>=550L){try{wm.removeView(v)}catch(_:Exception){};bubble=null;showPanel();showButtons()}else if(running)stopLoop() else startLoop();(v as TextView).background=bg(if(running)cyan else red,14,Color.WHITE)};true}
+            MotionEvent.ACTION_UP->{if(!moved){if(android.os.SystemClock.uptimeMillis()-downAt>=550L){try{wm.removeView(v)}catch(_:Exception){};bubble=null;showPanel();showButtons()}else if(running)stopLoop() else startLoop();updateBubbleState()};true}
             else->true
         } }
     }
