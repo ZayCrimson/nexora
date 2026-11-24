@@ -20,12 +20,15 @@ class FloatingService : Service() {
     private val markers = mutableMapOf<Int, View>()
     private var panel: View? = null
     private var bubble: View? = null
+    private var hitMenu: View? = null
 
     private var running = false
     private var cursor = 0
 
     private val cyan = 0xFF46E1EE.toInt()
     private val purple = 0xFF9B8CFF.toInt()
+    private val pink = 0xFFEA6685.toInt()
+    private val navy = 0xF51B2947.toInt()
 
     private fun dp(v: Int) =
         (v * resources.displayMetrics.density).toInt()
@@ -71,10 +74,7 @@ class FloatingService : Service() {
 
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                intArrayOf(
-                    0xF51B2947.toInt(),
-                    0xF5222049.toInt()
-                )
+                intArrayOf(navy, 0xF5222049.toInt())
             ).apply {
                 cornerRadius = dp(18).toFloat()
             }
@@ -92,30 +92,24 @@ class FloatingService : Service() {
         }
 
         row.addView(
-            controlButton("START", cyan) {
-                startLoop()
-            },
+            controlButton("START", cyan) { startLoop() },
             weightParams()
         )
 
         row.addView(
-            controlButton("STOP", 0xFFEA6685.toInt()) {
-                stopLoop()
-            },
+            controlButton("STOP", pink) { stopLoop() },
             weightParams()
         )
 
         row.addView(
-            controlButton("HIDE", 0xFF465779.toInt()) {
-                minimize()
-            },
+            controlButton("HIDE", 0xFF465779.toInt()) { minimize() },
             weightParams()
         )
 
         root.addView(row)
 
         root.addView(TextView(this).apply {
-            text = "Drag numbered markers to set tap positions"
+            text = "Drag markers to set positions • Tap 3 for hit settings"
             textSize = 10f
             setTextColor(0xFFB9C7DE.toInt())
             setPadding(dp(3), dp(7), 0, 0)
@@ -134,7 +128,6 @@ class FloatingService : Service() {
         makeDraggable(root)
     }
 
-    // DRAG CONTROLLER
     private fun makeDraggable(view: View) {
         val touchSlop =
             ViewConfiguration.get(this).scaledTouchSlop
@@ -146,8 +139,7 @@ class FloatingService : Service() {
         var moved = false
 
         view.setOnTouchListener { v, event ->
-            val lp =
-                v.layoutParams as WindowManager.LayoutParams
+            val lp = v.layoutParams as WindowManager.LayoutParams
 
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -173,10 +165,8 @@ class FloatingService : Service() {
                     if (moved) {
                         lp.x = originX + dx.roundToInt()
                         lp.y = originY + dy.roundToInt()
-
                         wm.updateViewLayout(v, lp)
                     }
-
                     true
                 }
 
@@ -196,24 +186,10 @@ class FloatingService : Service() {
         text = textValue
         gravity = Gravity.CENTER
         textSize = 11f
-
-        setTextColor(
-            if (color == cyan) 0xFF0A0F1F.toInt()
-            else -1
-        )
-
+        setTextColor(if (color == cyan) 0xFF0A0F1F.toInt() else -1)
         background = rounded(color, 11)
-
-        setPadding(
-            dp(13),
-            dp(11),
-            dp(13),
-            dp(11)
-        )
-
-        setOnClickListener {
-            click()
-        }
+        setPadding(dp(13), dp(11), dp(13), dp(11))
+        setOnClickListener { click() }
     }
 
     private fun weightParams() =
@@ -225,97 +201,211 @@ class FloatingService : Service() {
         val dm = resources.displayMetrics
 
         targets.forEach { t ->
-            if (markers.containsKey(t.id)) {
-                return@forEach
-            }
+            if (markers.containsKey(t.id)) return@forEach
 
             val marker = TextView(this).apply {
                 text = t.id.toString()
                 textSize = 16f
                 gravity = Gravity.CENTER
-
                 setTextColor(0xFF101426.toInt())
 
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-
-                    setColor(
-                        if (t.id % 2 == 0) purple else cyan
-                    )
-
+                    setColor(if (t.id % 2 == 0) purple else cyan)
                     setStroke(dp(2), 0xFFFFFFFF.toInt())
                 }
 
                 alpha = if (t.enabled) 1f else .38f
 
+                var downX = 0f
+                var downY = 0f
+                var originX = 0
+                var originY = 0
+                var moved = false
+
+                val touchSlop =
+                    ViewConfiguration.get(this@FloatingService).scaledTouchSlop
+
                 setOnTouchListener { v, event ->
-                    val lp =
-                        v.layoutParams as WindowManager.LayoutParams
+                    val lp = v.layoutParams as WindowManager.LayoutParams
 
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
-                            v.tag = floatArrayOf(
-                                event.rawX - lp.x,
-                                event.rawY - lp.y
-                            )
+                            downX = event.rawX
+                            downY = event.rawY
+                            originX = lp.x
+                            originY = lp.y
+                            moved = false
                             true
                         }
 
                         MotionEvent.ACTION_MOVE -> {
-                            val delta = v.tag as FloatArray
+                            val dx = event.rawX - downX
+                            val dy = event.rawY - downY
 
-                            lp.x = (
-                                event.rawX - delta[0]
-                            ).roundToInt()
+                            if (
+                                kotlin.math.abs(dx) > touchSlop ||
+                                kotlin.math.abs(dy) > touchSlop
+                            ) {
+                                moved = true
+                            }
 
-                            lp.y = (
-                                event.rawY - delta[1]
-                            ).roundToInt()
+                            if (moved) {
+                                lp.x = originX + dx.roundToInt()
+                                lp.y = originY + dy.roundToInt()
 
-                            wm.updateViewLayout(v, lp)
+                                wm.updateViewLayout(v, lp)
 
-                            t.x = (
-                                lp.x + dp(24)
-                            ).toFloat() / dm.widthPixels
+                                t.x = (lp.x + dp(24)).toFloat() /
+                                    dm.widthPixels
 
-                            t.y = (
-                                lp.y + dp(24)
-                            ).toFloat() / dm.heightPixels
-
+                                t.y = (lp.y + dp(24)).toFloat() /
+                                    dm.heightPixels
+                            }
                             true
                         }
 
                         MotionEvent.ACTION_UP -> {
-                            TargetStore.save(
-                                this@FloatingService,
-                                targets
-                            )
+                            if (moved) {
+                                TargetStore.save(
+                                    this@FloatingService,
+                                    targets
+                                )
+                            } else if (t.id == 3) {
+                                showHitMenu(t)
+                            }
                             true
                         }
 
+                        MotionEvent.ACTION_CANCEL -> true
                         else -> true
                     }
                 }
             }
 
-            val lp = overlayParams(
-                dp(48),
-                dp(48)
-            ).apply {
+            val lp = overlayParams(dp(48), dp(48)).apply {
                 gravity = Gravity.TOP or Gravity.START
-
-                x = (
-                    t.x * dm.widthPixels
-                ).roundToInt()
-
-                y = (
-                    t.y * dm.heightPixels
-                ).roundToInt()
+                x = (t.x * dm.widthPixels).roundToInt()
+                y = (t.y * dm.heightPixels).roundToInt()
             }
 
             wm.addView(marker, lp)
             markers[t.id] = marker
         }
+    }
+
+    private fun showHitMenu(target: TargetConfig) {
+        if (hitMenu != null) {
+            closeHitMenu()
+            return
+        }
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(navy, 0xF5222049.toInt())
+            ).apply {
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), cyan)
+            }
+        }
+
+        root.addView(TextView(this).apply {
+            text = "TARGET 3  •  HIT SETTINGS"
+            textSize = 13f
+            setTextColor(cyan)
+            setPadding(0, 0, 0, dp(12))
+        })
+
+        root.addView(TextView(this).apply {
+            text = "HIT DURATION (MS)"
+            textSize = 11f
+            setTextColor(0xFFB9C7DE.toInt())
+        })
+
+        val input = EditText(this).apply {
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText(target.duration.toString())
+            textSize = 16f
+            setTextColor(-1)
+            setSelectAllOnFocus(true)
+            background = rounded(0xFF293956.toInt(), 9)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+
+        root.addView(
+            input,
+            LinearLayout.LayoutParams(
+                -1,
+                -2
+            ).apply {
+                topMargin = dp(7)
+                bottomMargin = dp(12)
+            }
+        )
+
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+
+        val save = controlButton("SAVE", cyan) {
+            val value = input.text.toString().toLongOrNull()
+
+            if (value == null || value < 1L || value > 60000L) {
+                Toast.makeText(
+                    this@FloatingService,
+                    "Enter a value from 1 to 60000 ms",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                target.duration = value
+
+                TargetStore.save(
+                    this@FloatingService,
+                    targets
+                )
+
+                Toast.makeText(
+                    this@FloatingService,
+                    "Target 3 hit: ${value} ms saved",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                closeHitMenu()
+            }
+        }
+
+        val cancel = controlButton("CANCEL", 0xFF465779.toInt()) {
+            closeHitMenu()
+        }
+
+        buttons.addView(save, weightParams())
+        buttons.addView(cancel, weightParams())
+        root.addView(buttons)
+
+        hitMenu = root
+
+        wm.addView(
+            root,
+            overlayParams(dp(260), -2).apply {
+                gravity = Gravity.CENTER
+            }
+        )
+
+        input.requestFocus()
+    }
+
+    private fun closeHitMenu() {
+        hitMenu?.let {
+            try {
+                wm.removeView(it)
+            } catch (_: Exception) {
+            }
+        }
+        hitMenu = null
     }
 
     private fun startLoop() {
@@ -341,27 +431,22 @@ class FloatingService : Service() {
 
         running = true
         cursor = 0
-
         setMarkersTouchable(false)
         updateBubbleState()
-
         runNext()
     }
 
     private fun stopLoop() {
         running = false
-
         handler.removeCallbacksAndMessages(null)
-
         setMarkersTouchable(true)
         updateBubbleState()
     }
 
     private fun setMarkersTouchable(touchable: Boolean) {
         markers.values.forEach { marker ->
-            val lp =
-                marker.layoutParams as? WindowManager.LayoutParams
-                    ?: return@forEach
+            val lp = marker.layoutParams as? WindowManager.LayoutParams
+                ?: return@forEach
 
             lp.flags = if (touchable) {
                 lp.flags and
@@ -380,12 +465,7 @@ class FloatingService : Service() {
 
         b.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-
-            setColor(
-                if (running) 0xFFEA6685.toInt()
-                else cyan
-            )
-
+            setColor(if (running) pink else cyan)
             setStroke(dp(2), 0xFFFFFFFF.toInt())
         }
 
@@ -407,9 +487,7 @@ class FloatingService : Service() {
             return
         }
 
-        if (cursor >= active.size) {
-            cursor = 0
-        }
+        if (cursor >= active.size) cursor = 0
 
         val t = active[cursor++]
 
@@ -423,36 +501,25 @@ class FloatingService : Service() {
                 return@postDelayed
             }
 
-            val x =
-                t.x * resources.displayMetrics.widthPixels
-
-            val y =
-                t.y * resources.displayMetrics.heightPixels
+            val x = t.x * resources.displayMetrics.widthPixels
+            val y = t.y * resources.displayMetrics.heightPixels
 
             service.performTap(x, y, t.duration) { success ->
                 if (running) {
-                    val delay =
-                        if (success) t.endDelay else 100L
-
-                    handler.postDelayed({
-                        runNext()
-                    }, delay)
+                    val delay = if (success) t.endDelay else 100L
+                    handler.postDelayed({ runNext() }, delay)
                 }
             }
         }, t.startDelay)
     }
 
     private fun minimize() {
-        panel?.let {
-            wm.removeView(it)
-        }
+        closeHitMenu()
 
+        panel?.let { wm.removeView(it) }
         panel = null
 
-        markers.values.forEach {
-            wm.removeView(it)
-        }
-
+        markers.values.forEach { wm.removeView(it) }
         markers.clear()
 
         if (bubble != null) return
@@ -461,26 +528,13 @@ class FloatingService : Service() {
             text = "N"
             textSize = 17f
             gravity = Gravity.CENTER
-
             setTextColor(0xFF101426.toInt())
 
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-
-                setColor(
-                    if (running) 0xFFEA6685.toInt()
-                    else cyan
-                )
-
+                setColor(if (running) pink else cyan)
                 setStroke(dp(2), 0xFFFFFFFF.toInt())
             }
-
-            contentDescription =
-                if (running) {
-                    "NEXORA running. Tap to stop, hold to open controls"
-                } else {
-                    "NEXORA stopped. Tap to start, hold to open controls"
-                }
         }
 
         bubble = b
@@ -497,9 +551,6 @@ class FloatingService : Service() {
         makeBubbleDraggable(b)
     }
 
-    // TAP N = START/STOP
-    // HOLD N = OPEN CONTROLLER
-    // DRAG N = MOVE BUBBLE
     private fun makeBubbleDraggable(view: View) {
         val touchSlop =
             ViewConfiguration.get(this).scaledTouchSlop
@@ -508,13 +559,10 @@ class FloatingService : Service() {
 
         view.setOnTouchListener(
             object : View.OnTouchListener {
-
                 var downX = 0f
                 var downY = 0f
-
                 var originX = 0
                 var originY = 0
-
                 var moved = false
                 var downTime = 0L
 
@@ -522,21 +570,16 @@ class FloatingService : Service() {
                     v: View,
                     e: MotionEvent
                 ): Boolean {
-
-                    val lp =
-                        v.layoutParams as WindowManager.LayoutParams
+                    val lp = v.layoutParams as WindowManager.LayoutParams
 
                     when (e.action) {
                         MotionEvent.ACTION_DOWN -> {
                             downX = e.rawX
                             downY = e.rawY
-
                             originX = lp.x
                             originY = lp.y
-
                             downTime = SystemClock.uptimeMillis()
                             moved = false
-
                             return true
                         }
 
@@ -547,17 +590,13 @@ class FloatingService : Service() {
                             if (
                                 kotlin.math.abs(dx) > touchSlop ||
                                 kotlin.math.abs(dy) > touchSlop
-                            ) {
-                                moved = true
-                            }
+                            ) moved = true
 
                             if (moved) {
                                 lp.x = originX - dx.roundToInt()
                                 lp.y = originY + dy.roundToInt()
-
                                 wm.updateViewLayout(v, lp)
                             }
-
                             return true
                         }
 
@@ -567,30 +606,21 @@ class FloatingService : Service() {
                                     SystemClock.uptimeMillis() -
                                     downTime >= holdMs
                                 ) {
-                                    bubble?.let {
-                                        wm.removeView(it)
-                                    }
-
+                                    bubble?.let { wm.removeView(it) }
                                     bubble = null
-
                                     showController()
                                     showTargets()
-
                                 } else if (running) {
                                     stopLoop()
                                 } else {
                                     startLoop()
                                 }
                             }
-
                             return true
                         }
 
-                        MotionEvent.ACTION_CANCEL -> {
-                            return true
-                        }
+                        MotionEvent.ACTION_CANCEL -> return true
                     }
-
                     return true
                 }
             }
@@ -599,18 +629,11 @@ class FloatingService : Service() {
 
     override fun onDestroy() {
         stopLoop()
+        closeHitMenu()
 
-        panel?.let {
-            wm.removeView(it)
-        }
-
-        markers.values.forEach {
-            wm.removeView(it)
-        }
-
-        bubble?.let {
-            wm.removeView(it)
-        }
+        panel?.let { wm.removeView(it) }
+        markers.values.forEach { wm.removeView(it) }
+        bubble?.let { wm.removeView(it) }
 
         super.onDestroy()
     }
